@@ -11,8 +11,19 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     steps:
-      - name: Send Slack Message
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract Article and Send Message
         run: |
-          curl -X POST -H 'Content-type: application/json' \
-          --data '{"text":"📢 *New Article Published!* \nA new update was just added to the Knowledge Hub. \n🔗 <https://waleed0-blip.github.io/knowledge-hub/|Read it here>"}' \
-          ${{ secrets.SLACK_WEBHOOK }}
+          # 1. Find the first link in the HTML file (the newest article)
+          LINK_LINE=$(grep -m 1 '<a href=' index.html)
+          
+          # 2. Extract the exact URL and the Title
+          URL=$(echo "$LINK_LINE" | grep -oP '(?<=href=")[^"]*')
+          TITLE=$(echo "$LINK_LINE" | grep -oP '(?<=>)[^<]*(?=</a>)')
+          
+          # 3. Build a safe message and send it to Slack
+          PAYLOAD=$(jq -n --arg title "$TITLE" --arg url "$URL" '{text: "📢 *New Article Published!*\n\n<\($url)|\($title)>"}')
+          
+          curl -X POST -H 'Content-type: application/json' --data "$PAYLOAD" ${{ secrets.SLACK_WEBHOOK }}
