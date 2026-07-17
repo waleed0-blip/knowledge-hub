@@ -16,14 +16,16 @@ jobs:
 
       - name: Extract Article and Send Message
         run: |
-          # 1. Find the first link in the HTML file (the newest article)
-          LINK_LINE=$(grep -m 1 '<a href=' index.html)
+          # Turn off immediate exit so formatting quirks don't crash the robot
+          set +e 
           
-          # 2. Extract the exact URL and the Title
-          URL=$(echo "$LINK_LINE" | grep -oP '(?<=href=")[^"]*')
-          TITLE=$(echo "$LINK_LINE" | grep -oP '(?<=>)[^<]*(?=</a>)')
+          # 1. Grab the exact line containing the first link
+          LINK_LINE=$(grep -m 1 'href=' index.html)
           
-          # 3. Build a safe message and send it to Slack
-          PAYLOAD=$(jq -n --arg title "$TITLE" --arg url "$URL" '{text: "📢 *New Article Published!*\n\n<\($url)|\($title)>"}')
+          # 2. Extract URL and Title using a highly forgiving method
+          URL=$(echo "$LINK_LINE" | sed -n "s/.*href=['\"]\([^'\"]*\)['\"].*/\1/p")
+          TITLE=$(echo "$LINK_LINE" | sed -n 's/.*>\([^<]*\)<\/a>.*/\1/p')
           
+          # 3. Format and send the message to Slack
+          PAYLOAD=$(jq -n --arg title "$TITLE" --arg url "$URL" '{text: "📢 *Very Important Article!*\n\n<\($url)|\($title)>"}')
           curl -X POST -H 'Content-type: application/json' --data "$PAYLOAD" ${{ secrets.SLACK_WEBHOOK }}
